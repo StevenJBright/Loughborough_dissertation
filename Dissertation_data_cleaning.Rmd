@@ -525,18 +525,6 @@ diss_data %>%
   summary(DERS.clarity_sum_score)
 ```
 
-
-```{r Calculate cronbach alpha for SE}
-
-SE_items <- diss_data %>% 
-  select(starts_with("Selfesteem.")) %>% 
-  select(-Selfesteem.sum_score)
-
-alpha(SE_items,
-      check.keys = TRUE)
-
-```
-
 #Write clean data
 
 ```{r Re-order columns}
