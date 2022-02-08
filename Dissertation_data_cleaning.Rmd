@@ -1,0 +1,568 @@
+---
+title: "Dissertation_data_cleaning"
+author: "Steven Bright"
+date: "05/02/2022"
+output: html_document
+---
+
+```{r Clean global environment}
+remove(list=ls())
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Install packages}
+#install.packages("psych")
+#install.packages("tidyverse")
+```
+
+```{r Load packages}
+library(psych)
+library(tidyverse)
+```
+
+```{r Read in path script}
+source("../Dissertation_paths.r")
+```
+
+#Read in data
+
+```{r Read in data}
+diss_data <- read_csv(paste0(data_path, data_name))
+```
+
+```{r Check data}
+diss_data %>% 
+  names()
+
+diss_data %>%
+  head()
+```
+
+#Formating changes
+
+```{r Drop unwanted columns}
+unwanted_column_names <- c(
+  "StartDate",
+  "EndDate",
+  "Status",
+  "IPAddress",
+  "Progress",
+  "Duration (in seconds)",
+  "Finished",
+  "RecordedDate",
+  "ResponseId",
+  "RecipientLastName",
+  "RecipientFirstName",
+  "RecipientEmail",
+  "ExternalReference",
+  "LocationLatitude",
+  "LocationLongitude",
+  "DistributionChannel",
+  "UserLanguage",
+  "id"
+)
+
+diss_data <- diss_data %>% 
+  select(-all_of(unwanted_column_names))
+
+diss_data %>% 
+  names()
+```
+
+```{r Remove first two rows of data}
+diss_data <- diss_data %>% 
+  slice(c(-1, -2))
+```
+
+```{r Add participant_id column}
+diss_data <- diss_data %>% 
+  mutate(ID = 1:n()) %>% 
+  select(ID, everything())
+
+diss_data %>% 
+  head()
+```
+
+```{r Rename columns}
+
+#Put correct column names into a vector
+correct_column_names <- c(
+  "ID",
+  "Participant_consent",
+  "Dem.age",
+  "Dem.sex",
+  "Dem.ethnic_origin",
+  "Wellbeing.optimistic_future",
+  "Wellbeing.feeling_useful",
+  "Wellbeing.feeling_relaxed",
+  "Wellbeing.interested_others",
+  "Wellbeing.spare_energy",
+  "Wellbeing.dealing_with_problems",
+  "Wellbeing.thinking_clearly",
+  "Wellbeing.feeling_good_self",
+  "Wellbeing.feeling_close_others",
+  "Wellbeing.feeling_confident",
+  "Wellbeing.makeup_mind",
+  "Wellbeing.feeling_loved",
+  "Wellbeing.interested_new_things",
+  "Wellbeing.feeling_cheerful",
+  "Selfesteem.satisfied_with_self",
+  "Selfesteem.no_good_at_times",
+  "Selfesteem.good_qualities",
+  "Selfesteem.well_as_most_people",
+  "Selfesteem.not_much_proud",
+  "Selfesteem.feel_useless",
+  "Selfesteem.equal_worth_others",
+  "Selfesteem.wish_more_respect",
+  "Selfesteem.feel_faliure",
+  "Selfesteem.positive_attitude",
+  "DERS.clear_about_feelings.1",
+  "DERS.pay_attention_feelings.2",
+  "DERS.emotions_overwhelming.3",
+  "DERS.no_idea_feelings.4",
+  "DERS.difficulty_sense_feelings.5",
+  "DERS.attentive_to_feelings.6",
+  "DERS.know_exactly_feelings.7",
+  "DERS.care_about_feelings.8",
+  "DERS.confused_what_i_feel.9",
+  "DERS.acknowledge_emotions.10",
+  "DERS.angry_fo_feeling_upset.11",
+  "DERS.embarrassed_feeling_upset.12",
+  "DERS.difficulty_working_upset.13",
+  "DERS.out_of_control_upset.14",
+  "DERS.remain_long_time_upset.15",
+  "DERS.end_up_depressed_upset.16",
+  "DERS.feelings_valid_upset.17",
+  "DERS.difficulty_focusing_upset.18",
+  "DERS.feel_out_of_control_upset.19",
+  "DERS.get_things_done_upset.20",
+  "DERS.ashamed_feeling_upset.21",
+  "DERS.know_feel_better.22",
+  "DERS.feel_weak_upset.23",
+  "DERS.remain_control_upset.24",
+  "DERS.guilty_feeling_upset.25",
+  "DERS.difficulty_concentrating_upset.26",
+  "DERS.difficulty_controlling_behaniours_upset.27",
+  "DERS.nothing_make_feel_better_upset.28",
+  "DERS.irritated_feeling_upset.29",
+  "DERS.feel_bad_upset.30",
+  "DERS.wallow_upset.31",
+  "DERS.lose_control_upset.32",
+  "DERS.difficulty_thinking_else_upset.33",
+  "DERS.figure_out_feelings_upset.34",
+  "DERS.long_time_feel_better_upset.35",
+  "DERS.emotions_overwhelming_upset.36"
+)
+
+#Change column names
+names(diss_data) <- correct_column_names
+
+diss_data %>% 
+  colnames()
+
+diss_data %>% 
+  head()
+```
+
+#Data cleaning
+
+```{r Change column data type to numeric}
+diss_data <- diss_data %>% 
+  map_df(as.numeric)
+```
+
+
+Participants who didn't reach the end of the survey should be excluded 
+because we indicated that they could close the broswer to withdraw.
+
+I have identified the partial responders by viewing the tibble and checking
+which participants consistently left NA responses before the end of the survey.
+
+```{r Remove partial responders}
+#diss_data %>% 
+#  View()
+
+#Remove the partial responders
+diss_data <- diss_data %>% 
+  slice(-c(19, 20, 21, 22, 23, 24, 66, 67, 90, 149, 166))
+```
+
+#Create total sum scores
+
+There are three sum scores to create:
+1) Mental wellbeing (0-70)
+2) Self-esteem (10-40)
+3) DERS (0-180)
+
+```{r Create mental wellbeing sum score}
+#Sum all the wellbeing scores
+diss_data$Wellbeing.sum_score <- diss_data %>% 
+  select(starts_with("Wellbeing.")) %>% 
+  rowSums(., na.rm = TRUE)
+
+#Check values
+diss_data %>% 
+  select(Wellbeing.sum_score) %>% 
+  summary()
+```
+
+```{r Create self-esteem sum score}
+#Sum all the self-esteem scores
+diss_data$Selfesteem.sum_score <- diss_data %>% 
+  select(starts_with("Selfesteem.")) %>% 
+  rowSums(., na.rm = TRUE)
+
+#Check values
+diss_data %>% 
+  select(Selfesteem.sum_score) %>% 
+  summary()
+```
+
+```{r Create keys variable for DERS}
+#1 for normal coding, -1 for reverse coding
+ders_sum_score_keys <- rep(1, times = 36)
+```
+
+```{r Get names of ders variables}
+ders_variable_names <- diss_data %>% 
+  select(starts_with("DERS.")) %>% 
+  colnames()
+```
+
+```{r Create ders total sum score}
+# calculate total/sum score
+ders_total_score <- scoreItems(keys = ders_sum_score_keys,
+                               items = diss_data[ders_variable_names],
+                               totals = TRUE, #total sum score
+                               missing = TRUE, #will include individuals that have missing values
+                               impute = 'none',
+                               min = 1, 
+                               max = 5
+                               )
+
+#Add in total score column to data frame
+diss_data <- diss_data %>%
+  mutate(DERS.sum_score = 
+           as.numeric(ders_total_score$scores))
+
+#check the values
+diss_data %>%
+  select(DERS.sum_score) %>% 
+  summary(ders.sum_score)
+```
+
+##Create DERS subscales
+
+Unlike the MW and SE scales, the DERS is a multidimensional scale with a total of 6 subscales. The subscales include:
+
+Note: "R" stands for "Reverse-coded".
+
+1) Non-acceptance (Items 11, 12, 21, 23, 25, 29)
+2) Difficulties engaging in goal-directed behaviour (Items 13, 18, 20R, 26, 33)
+3) Impulse control difficulties (Items 3, 14, 19, 24R, 27, 32)
+4) Lack of emotional awareness (Items 2R, 6R, 8R, 10R, 17R, 34R)
+5) Limited access to emotion regulation strategies (Items 15, 16, 22R, 28, 30, 31, 35, 36)
+6) Lack of emotional clarity (Items 1R, 4, 5, 7R, 9)
+
+### 1) Non-acceptance subscale sum score
+
+```{r Create the non-acceptance sum score}
+#Get names of DERS non-acceptance items
+DERS_non_acceptance_names <- diss_data %>% 
+  select(DERS.angry_fo_feeling_upset.11,
+  DERS.embarrassed_feeling_upset.12,
+  DERS.ashamed_feeling_upset.21,
+  DERS.feel_weak_upset.23,
+  DERS.guilty_feeling_upset.25,
+  DERS.irritated_feeling_upset.29
+  ) %>% 
+  colnames()
+
+#Sum all the non-acceptance items
+diss_data$DERS.non_acceptance_sum_score <- diss_data %>% 
+  select(all_of(DERS_non_acceptance_names)) %>% 
+  rowSums(., na.rm = TRUE)
+
+#Check values
+diss_data %>% 
+  select(DERS.non_acceptance_sum_score) %>% 
+  summary()
+```
+
+### 2) Difficulties in engaging in goal-directed behaviour
+
+```{r Create keys for DERS goals subscale}
+#1 for normal coding, -1 for reverse coding
+ders_goals_keys <- c(
+  1,
+  1,
+  -1,
+  1,
+  1
+)
+```
+
+```{r Get names of DERS goals variables}
+ders_goals_variable_names <- diss_data %>% 
+  select(DERS.difficulty_working_upset.13,
+  DERS.difficulty_focusing_upset.18,
+  DERS.get_things_done_upset.20,
+  DERS.difficulty_concentrating_upset.26,
+  DERS.difficulty_thinking_else_upset.33
+  ) %>% 
+  colnames()
+```
+
+```{r Create ders goals sum score}
+# calculate total/sum score
+ders_goals_score <- scoreItems(keys = ders_goals_keys,
+                               items = diss_data[ders_goals_variable_names],
+                               totals = TRUE, #total sum score
+                               missing = TRUE, #will include individuals that have missing values
+                               impute = 'none',
+                               min = 1, 
+                               max = 5
+                               )
+
+#Add in total score column to data frame
+diss_data <- diss_data %>%
+  mutate(DERS.goals_sum_score = 
+           as.numeric(ders_goals_score$scores))
+
+#Check the values
+diss_data %>%
+  select(DERS.goals_sum_score) %>% 
+  summary(DERS.goals_sum_score)
+```
+
+### 3) Impulse control difficulties
+
+```{r Create ders impulse keys}
+#1 for normal coding, -1 for reverse coding
+ders_impulse_keys <- c(
+  1,
+  1,
+  1,
+  -1,
+  1,
+  1
+)
+```
+
+```{r Get names of DERS impulse variables}
+ders_impulse_variable_names <- diss_data %>% 
+  select(DERS.emotions_overwhelming.3,
+         DERS.out_of_control_upset.14,
+         DERS.feel_out_of_control_upset.19,
+         DERS.remain_control_upset.24,
+         DERS.difficulty_controlling_behaniours_upset.27,
+         DERS.lose_control_upset.32
+         ) %>% 
+  colnames()
+```
+
+```{r Create ders impulse sum score}
+# calculate total/sum score
+ders_impulse_score <- scoreItems(keys = ders_impulse_keys,
+                               items = diss_data[ders_impulse_variable_names],
+                               totals = TRUE, #total sum score
+                               missing = TRUE, #will include individuals that have missing values
+                               impute = 'none',
+                               min = 1, 
+                               max = 5
+                               )
+
+#Add in total score column to data frame
+diss_data <- diss_data %>%
+  mutate(DERS.impulse_sum_score = 
+           as.numeric(ders_impulse_score$scores))
+
+#Check the values
+diss_data %>%
+  select(DERS.impulse_sum_score) %>% 
+  summary(DERS.impulse_sum_score)
+```
+
+### 4) Lack of emotional awareness
+
+```{r Create ders awareness keys}
+#1 for normal coding, -1 for reverse coding
+ders_awareness_keys <- rep(-1, times = 6)
+```
+
+```{r Get names of DERS awareness variables}
+ders_awareness_variable_names <- diss_data %>% 
+  select(DERS.pay_attention_feelings.2,
+         DERS.attentive_to_feelings.6,
+         DERS.care_about_feelings.8,
+         DERS.acknowledge_emotions.10,
+         DERS.feelings_valid_upset.17,
+         DERS.figure_out_feelings_upset.34
+         ) %>% 
+  colnames()
+```
+
+```{r Create ders awareness sum score}
+# calculate total/sum score
+ders_awareness_score <- scoreItems(keys = ders_awareness_keys,
+                               items = diss_data[ders_awareness_variable_names],
+                               totals = TRUE, #total sum score
+                               missing = TRUE, #will include individuals that have missing values
+                               impute = 'none',
+                               min = 1, 
+                               max = 5
+                               )
+
+#Add in total score column to data frame
+diss_data <- diss_data %>%
+  mutate(DERS.awareness_sum_score = 
+           as.numeric(ders_awareness_score$scores))
+
+#Check the values
+diss_data %>%
+  select(DERS.awareness_sum_score) %>% 
+  summary(DERS.awareness_sum_score)
+```
+
+### 5) Limited access to strategies
+
+```{r Create ders srategies keys}
+#1 for normal coding, -1 for reverse coding
+ders_strategies_keys <- c(
+  1,
+  1,
+  -1,
+  1,
+  1,
+  1,
+  1,
+  1
+)
+```
+
+```{r Get names of DERS strategies variables}
+ders_strategies_variable_names <- diss_data %>% 
+  select(DERS.remain_long_time_upset.15,
+         DERS.end_up_depressed_upset.16,
+         DERS.know_feel_better.22,
+         DERS.nothing_make_feel_better_upset.28,
+         DERS.feel_bad_upset.30,
+         DERS.wallow_upset.31,
+         DERS.long_time_feel_better_upset.35,
+         DERS.emotions_overwhelming_upset.36
+         ) %>% 
+  colnames()
+```
+
+```{r Create ders strategies sum score}
+# calculate total/sum score
+ders_strategies_score <- scoreItems(keys = ders_strategies_keys,
+                               items = diss_data[ders_strategies_variable_names],
+                               totals = TRUE, #total sum score
+                               missing = TRUE, #will include individuals that have missing values
+                               impute = 'none',
+                               min = 1, 
+                               max = 5
+                               )
+
+#Add in total score column to data frame
+diss_data <- diss_data %>%
+  mutate(DERS.strategies_sum_score = 
+           as.numeric(ders_strategies_score$scores))
+
+#Check the values
+diss_data %>%
+  select(DERS.strategies_sum_score) %>% 
+  summary(DERS.strategies_sum_score)
+```
+
+### 6) Lack of emotional clarity
+
+```{r Create ders clarity keys}
+#1 for normal coding, -1 for reverse coding
+ders_clarity_keys <- c(
+  -1,
+  1,
+  1,
+  -1,
+  1
+)
+```
+
+```{r Get names of DERS clarity variables}
+ders_clarity_variable_names <- diss_data %>% 
+  select(DERS.clear_about_feelings.1,
+         DERS.no_idea_feelings.4,
+         DERS.difficulty_sense_feelings.5,
+         DERS.know_exactly_feelings.7,
+         DERS.confused_what_i_feel.9
+         ) %>% 
+  colnames()
+```
+
+```{r Create ders clarity sum score}
+# calculate total/sum score
+ders_clarity_score <- scoreItems(keys = ders_clarity_keys,
+                               items = diss_data[ders_clarity_variable_names],
+                               totals = TRUE, #total sum score
+                               missing = TRUE, #will include individuals that have missing values
+                               impute = 'none',
+                               min = 1, 
+                               max = 5
+                               )
+
+#Add in total score column to data frame
+diss_data <- diss_data %>%
+  mutate(DERS.clarity_sum_score = 
+           as.numeric(ders_clarity_score$scores))
+
+#Check the values
+diss_data %>%
+  select(DERS.clarity_sum_score) %>% 
+  summary(DERS.clarity_sum_score)
+```
+
+
+```{r Calculate cronbach alpha for SE}
+
+SE_items <- diss_data %>% 
+  select(starts_with("Selfesteem.")) %>% 
+  select(-Selfesteem.sum_score)
+
+alpha(SE_items,
+      check.keys = TRUE)
+
+```
+
+#Write clean data
+
+```{r Re-order columns}
+diss_data %>%
+  colnames()
+
+diss_data <- diss_data %>% 
+  select(ID, 
+         Participant_consent,
+         Dem.age,
+         Dem.sex,
+         Dem.ethnic_origin,
+         Wellbeing.sum_score,
+         Selfesteem.sum_score,
+         DERS.sum_score,
+         DERS.non_acceptance_sum_score,
+         DERS.goals_sum_score,
+         DERS.impulse_sum_score,
+         DERS.awareness_sum_score,
+         DERS.strategies_sum_score,
+         DERS.clarity_sum_score,
+         everything())
+```
+
+```{r Write clean data to be used in SPSS}
+write.csv(diss_data,
+          file = paste0(clean_data_path,
+                        "clean_diss_data.csv"))
+```
